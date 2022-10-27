@@ -103,14 +103,47 @@ char *
 runtime_disk_for_partition(const char *part_dev)
 {
 	int len = strlen(part_dev);
+	const char *part_name;
+	char pathbuf[PATH_MAX];
+	char *sys_path = NULL;
+	char *disk_name;
 	char *result;
 
 	if (len == 0 || !isdigit(part_dev[len-1]))
 		return NULL;
 
-	result = strdup(part_dev);
-	while (len && isdigit(result[len-1]))
-		result[--len] = '\0';
+	/* skip "/dev/" */
+	part_name = part_dev + 5;
+
+	sprintf(pathbuf, "/sys/class/block/%s", part_name);
+
+	if ((sys_path = realpath(pathbuf, NULL)) == NULL) {
+		error("Error when getting the realpath of %s %m\n", pathbuf);
+		return NULL;
+	}
+
+	/* Get the disk name from the sysfs path */
+	/* example:
+	 *  /sys/devices/pci0000:00/0000:00:06.0/0000:02:00.0/nvme/nvme0/nvme0n1/nvme0n1p1
+	 */
+	disk_name = strstr(sys_path, part_name);
+	disk_name--;
+	*disk_name = '\0';
+	while (*disk_name != '/')
+		disk_name--;
+	disk_name++;
+
+	result = malloc(strlen("/dev/") + strlen(disk_name) + 1);
+	if (result == NULL) {
+		error("Error when allocating buffer: %m\n");
+		goto err;
+	}
+
+	sprintf(result, "/dev/%s", disk_name);
+
+err:
+	if (sys_path)
+		free(sys_path);
 	return result;
 }
 
