@@ -1119,12 +1119,10 @@ main(int argc, char **argv)
 		break;
 
 	case ACTION_UNSEAL:
-		if (opt_authorized_policy) {
-			if (opt_rsa_public_key == NULL)
-				usage(1, "You need to specify the --public-key option when unsealing using an authorized policy\n");
-			if (opt_pcr_policy == NULL)
-				usage(1, "You need to specify the --pcr-policy option when unsealing using an authorized policy\n");
-		}
+		if (opt_rsa_public_key == NULL && opt_pcr_policy)
+			usage(1, "You need to specify the --public-key option when unsealing using an authorized policy\n");
+		if (opt_pcr_policy == NULL && opt_rsa_public_key)
+			usage(1, "You need to specify the --pcr-policy option when unsealing using an authorized policy\n");
 		pcr_selection = get_pcr_selection_argument(argc, argv, opt_algo);
 		end_arguments(argc, argv);
 		break;
@@ -1175,9 +1173,9 @@ main(int argc, char **argv)
 	}
 
 	if (action == ACTION_UNSEAL) {
-		if (opt_authorized_policy) {
+		if (opt_rsa_public_key) {
 			/* input is the sealed secret, output is the cleartext */
-			if (!pcr_authorized_policy_unseal_secret(pcr_selection, opt_authorized_policy, opt_pcr_policy, opt_rsa_public_key, opt_input, opt_output))
+			if (!pcr_authorized_policy_unseal_secret(pcr_selection, opt_pcr_policy, opt_rsa_public_key, opt_input, opt_output))
 				return 1;
 		} else {
 			if (!pcr_unseal_secret(pcr_selection, opt_input, opt_output))
