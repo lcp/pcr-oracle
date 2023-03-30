@@ -72,4 +72,12 @@ extern bool		pcr_seal_secret(const tpm_pcr_bank_t *bank,
 extern bool		pcr_unseal_secret(const tpm_pcr_selection_t *pcr_selection,
 				const char *input_path, const char *output_path);
 
+extern bool		pcr_create_tpm2key(const tpm_pcr_selection_t *pcr_selection,
+				const char *rsakey_path, const char *signed_policy_path,
+				const char *input_path, const char *output_path);
+
+extern bool		pcr_tpm2key_add_policy(const tpm_pcr_selection_t *pcr_selection,
+				const char *rsakey_path, const char *signed_policy_path,
+				const char *input_path, const char *output_path,
+				bool append);
 #endif /* PCR_H */

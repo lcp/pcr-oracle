@@ -37,6 +37,7 @@
 #include "rsa.h"
 #include "bufparser.h"
 #include "config.h"
+#include "tpm2key.h"
 
 static const TPM2B_PUBLIC SRK_template = {
 	.size = sizeof(TPMT_PUBLIC),
@@ -1269,3 +1270,118 @@ cleanup:
 	return okay;
 }
 
+bool
+pcr_create_tpm2key(const tpm_pcr_selection_t *pcr_selection,
+		   const char *rsakey_path, const char *signed_policy_path,
+		   const char *input_path, const char *output_path)
+{
+	TSSPRIVKEY *tpm2key = NULL;
+	TPML_PCR_SELECTION pcr_sel;
+	TPMT_SIGNATURE *policy_signature = NULL;
+	TPM2B_PUBLIC *pub_key = NULL;
+	TPM2B_PRIVATE *sealed_private = NULL;
+	TPM2B_PUBLIC *sealed_public = NULL;
+	bool authpolicy = false;
+	bool okay = false;
+
+	if (rsakey_path != NULL && signed_policy_path != NULL)
+		authpolicy = true;
+
+	if (authpolicy) {
+		if (!read_public_key(rsakey_path, &pub_key))
+			goto cleanup;
+
+		if (!read_signature(signed_policy_path, &policy_signature))
+			goto cleanup;
+	}
+
+	if (!read_sealed_secret(input_path, &sealed_public, &sealed_private))
+		goto cleanup;
+
+	if (!__pcr_selection_build (&pcr_sel, pcr_selection->pcr_mask, pcr_selection->algo_info))
+		goto cleanup;
+
+	if (!tpm2key_basekey(&tpm2key, TPM2_RH_OWNER, sealed_public, sealed_private))
+		goto cleanup;
+
+	if (authpolicy) {
+		if (!tpm2key_add_authpolicy_policyauthorize(tpm2key, signed_policy_path,
+							    &pcr_sel, pub_key,
+							    policy_signature, false))
+		goto cleanup;
+	} else {
+		if (!tpm2key_add_policy_policypcr(tpm2key, &pcr_sel))
+			goto cleanup;
+	}
+
+	if (!tpm2key_write_file(output_path, tpm2key))
+		goto cleanup;
+
+	okay = true;
+
+cleanup:
+	if (policy_signature)
+		free(policy_signature);
+	if (pub_key)
+		free(pub_key);
+	if (sealed_public)
+		free(sealed_public);
+	if (sealed_private)
+		free(sealed_private);
+	if (tpm2key)
+		TSSPRIVKEY_free(tpm2key);
+
+	return okay;
+}
+
+bool
+pcr_tpm2key_add_policy(const tpm_pcr_selection_t *pcr_selection,
+		       const char *rsakey_path, const char *signed_policy_path,
+		       const char *input_path, const char *output_path,
+		       bool append)
+{
+	TSSPRIVKEY *tpm2key = NULL;
+	TPML_PCR_SELECTION pcr_sel;
+	TPMT_SIGNATURE *policy_signature = NULL;
+	TPM2B_PUBLIC *pub_key = NULL;
+	TPM2B_PRIVATE *sealed_private = NULL;
+	TPM2B_PUBLIC *sealed_public = NULL;
+	bool okay = false;
+
+	if (!read_public_key(rsakey_path, &pub_key))
+		goto cleanup;
+
+	if (!read_signature(signed_policy_path, &policy_signature))
+		goto cleanup;
+
+	if (!tpm2key_read_file(input_path, &tpm2key))
+		goto cleanup;
+
+	if (!__pcr_selection_build (&pcr_sel, pcr_selection->pcr_mask,
+				    pcr_selection->algo_info))
+		goto cleanup;
+
+	if (!tpm2key_add_authpolicy_policyauthorize(tpm2key, signed_policy_path,
+						    &pcr_sel, pub_key, policy_signature,
+						    true))
+		goto cleanup;
+
+	if (!tpm2key_write_file(output_path, tpm2key))
+		goto cleanup;
+
+	okay = true;
+
+cleanup:
+	if (policy_signature)
+		free(policy_signature);
+	if (pub_key)
+		free(pub_key);
+	if (sealed_public)
+		free(sealed_public);
+	if (sealed_private)
+		free(sealed_private);
+	if (tpm2key)
+		TSSPRIVKEY_free(tpm2key);
+
+	return okay;
+}

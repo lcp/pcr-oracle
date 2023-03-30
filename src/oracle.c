@@ -41,7 +41,9 @@ enum {
 	ACTION_STORE_PUBLIC_KEY,
 	ACTION_SEAL,
 	ACTION_UNSEAL,
-	ACTION_SIGN
+	ACTION_SIGN,
+	ACTION_CREATE_TPM2KEY,
+	ACTION_TPM2KEY_ADD_POLICY
 };
 
 enum {
@@ -931,6 +933,8 @@ get_action_argument(int argc, char **argv)
 		{ "seal-secret",		ACTION_SEAL	},
 		{ "unseal-secret",		ACTION_UNSEAL	},
 		{ "sign",			ACTION_SIGN	},
+		{ "create-tpm2key",		ACTION_CREATE_TPM2KEY	},
+		{ "tpm2key-add-policy",		ACTION_TPM2KEY_ADD_POLICY	},
 
 		{ NULL, 0 },
 	};
@@ -1135,7 +1139,29 @@ main(int argc, char **argv)
 		pcr_selection = get_pcr_selection_argument(argc, argv, opt_algo);
 		end_arguments(argc, argv);
 		break;
-
+	case ACTION_CREATE_TPM2KEY:
+		if (opt_input == NULL)
+			usage(1, "You need to specify the --input option when creating a TPM 2.0 key\n");
+		if (opt_output == NULL)
+			usage(1, "You need to specify the --output option when creating a TPM 2.0 key\n");
+		if ((opt_rsa_public_key != NULL && opt_pcr_policy == NULL) ||
+		    (opt_rsa_public_key == NULL && opt_pcr_policy != NULL))
+			usage(1, "You need to specify both the --public-key option and the --pcr-policy option when creating a TPM 2.0 key for authorized policy\n");
+		pcr_selection = get_pcr_selection_argument(argc, argv, opt_algo);
+		end_arguments(argc, argv);
+		break;
+	case ACTION_TPM2KEY_ADD_POLICY:
+		if (opt_input == NULL)
+			usage(1, "You need to specify the --input option when adding a policy to a TPM 2.0 key\n");
+		if (opt_output == NULL)
+			usage(1, "You need to specify the --output option when adding a policy a TPM 2.0 key\n");
+		if (opt_rsa_public_key == NULL)
+			usage(1, "You need to specify the --public-key option when adding a policy to a TPM 2.0 key\n");
+		if (opt_pcr_policy == NULL)
+			usage(1, "You need to specify the --pcr-policy option when adding a policy to a TPM 2.0 key\n");
+		pcr_selection = get_pcr_selection_argument(argc, argv, opt_algo);
+		end_arguments(argc, argv);
+		break;
 	}
 
 	if (action == ACTION_CREATE_AUTH_POLICY) {
@@ -1184,6 +1210,18 @@ main(int argc, char **argv)
 				return 1;
 		}
 
+		return 0;
+	}
+
+	if (action == ACTION_CREATE_TPM2KEY) {
+		if (!pcr_create_tpm2key(pcr_selection, opt_rsa_public_key, opt_pcr_policy, opt_input, opt_output))
+			return 1;
+		return 0;
+	}
+
+	if (action == ACTION_TPM2KEY_ADD_POLICY) {
+		if (!pcr_tpm2key_add_policy(pcr_selection, opt_rsa_public_key, opt_pcr_policy, opt_input, opt_output, false))
+			return 1;
 		return 0;
 	}
 
