@@ -1001,6 +1001,7 @@ tpm_event_log_rehash_ctx_init(tpm_event_log_rehash_ctx_t *ctx, const tpm_algo_in
 void
 tpm_event_log_rehash_ctx_destroy(tpm_event_log_rehash_ctx_t *ctx)
 {
+	buffer_free(ctx->sbatlevel);
 }
 
 void
